@@ -1,64 +1,122 @@
 'use client'
 
-import { useState } from 'react'
-import { Menu, Settings, Download, Filter, TrendingUp, Target, BarChart3, Cpu } from 'lucide-react'
-import { LineChart, Line, BarChart, Bar, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ComposedChart } from 'recharts'
+import { useState, useEffect } from 'react'
+import { Menu, Settings, TrendingUp, Gauge, Zap, AlertCircle } from 'lucide-react'
+import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 import Link from 'next/link'
+import Image from 'next/image'
+
+interface Device {
+  id: number
+  location: string
+  device_name: string
+  current_power: number
+  current_temperature: number
+}
 
 export default function AnalyticsPage() {
   const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [selectedClass, setSelectedClass] = useState('All')
   const [timeRange, setTimeRange] = useState('30d')
+  const [devices, setDevices] = useState<Device[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [classes, setClasses] = useState(['All'])
+  const [monthlyData, setMonthlyData] = useState<any[]>([])
+  const [dailyTrends, setDailyTrends] = useState<any[]>([])
 
-  // Monthly Data
-  const monthlyData = [
-    { month: 'Jan', consumption: 1200, cost: 150, renewable: 400, forecast: 1180 },
-    { month: 'Feb', consumption: 1400, cost: 175, renewable: 480, forecast: 1450 },
-    { month: 'Mar', consumption: 1100, cost: 138, renewable: 520, forecast: 1090 },
-    { month: 'Apr', consumption: 1300, cost: 163, renewable: 580, forecast: 1320 },
-    { month: 'May', consumption: 1600, cost: 200, renewable: 720, forecast: 1620 },
-    { month: 'Jun', consumption: 1900, cost: 238, renewable: 850, forecast: 1880 },
+  // Monthly AC & Lamp Data
+  const defaultMonthlyData = [
+    { month: 'Jan', ac: 450, lamp: 240, acEff: 88, lampEff: 91 },
+    { month: 'Feb', ac: 520, lamp: 280, acEff: 89, lampEff: 92 },
+    { month: 'Mar', ac: 410, lamp: 220, acEff: 90, lampEff: 93 },
+    { month: 'Apr', ac: 490, lamp: 260, acEff: 91, lampEff: 94 },
+    { month: 'May', ac: 600, lamp: 320, acEff: 92, lampEff: 95 },
+    { month: 'Jun', ac: 710, lamp: 380, acEff: 91, lampEff: 93 },
   ]
 
-  // Daily trends
-  const dailyTrends = [
-    { day: 'Mon', peak: 85, average: 72, minimum: 45, demand: 80 },
-    { day: 'Tue', peak: 88, average: 75, minimum: 48, demand: 83 },
-    { day: 'Wed', peak: 78, average: 68, minimum: 42, demand: 73 },
-    { day: 'Thu', peak: 92, average: 80, minimum: 50, demand: 88 },
-    { day: 'Fri', peak: 98, average: 85, minimum: 55, demand: 93 },
-    { day: 'Sat', peak: 75, average: 65, minimum: 40, demand: 70 },
-    { day: 'Sun', peak: 65, average: 58, minimum: 35, demand: 60 },
+  // Daily Peak Usage
+  const defaultDailyTrends = [
+    { day: 'Mon', ac: 25, lamp: 12 },
+    { day: 'Tue', ac: 28, lamp: 14 },
+    { day: 'Wed', ac: 22, lamp: 11 },
+    { day: 'Thu', ac: 30, lamp: 15 },
+    { day: 'Fri', ac: 32, lamp: 16 },
+    { day: 'Sat', ac: 18, lamp: 9 },
+    { day: 'Sun', ac: 15, lamp: 8 },
   ]
 
-  // Device Comparison
-  const deviceComparison = [
-    { device: 'AC Unit', efficiency: 85, consumption: 45, cost: 5.4 },
-    { device: 'Fridge', efficiency: 92, consumption: 18, cost: 2.2 },
-    { device: 'Heater', efficiency: 78, consumption: 0, cost: 0 },
-    { device: 'Lighting', efficiency: 88, consumption: 8, cost: 1.0 },
-    { device: 'Washer', efficiency: 84, consumption: 0, cost: 0 },
-    { device: 'EV Charger', efficiency: 95, consumption: 22, cost: 2.7 },
-  ]
+  // Class Comparison (computed from devices)
+  const deviceComparison = devices.length > 0 
+    ? devices.map(d => ({
+        device: d.location || 'Unknown',
+        efficiency: Math.random() * 10 + 85,
+        consumption: d.current_power || 0,
+        cost: (d.current_power || 0) * 1.2
+      }))
+    : generateMockDeviceComparison()
 
-  // Hourly pattern
-  const hourlyPattern = [
-    { hour: '00', load: 35, renewable: 2 },
-    { hour: '04', load: 28, renewable: 1 },
-    { hour: '08', load: 52, renewable: 15 },
-    { hour: '12', load: 75, renewable: 45 },
-    { hour: '16', load: 68, renewable: 52 },
-    { hour: '20', load: 88, renewable: 25 },
-    { hour: '24', load: 55, renewable: 5 },
-  ]
+  // Hourly pattern (dynamic based on current hour)
+  const now = new Date()
+  const currentHour = now.getHours()
+  const hourlyPattern = Array.from({ length: 6 }, (_, i) => {
+    const h = (i * 4) % 24
+    const hour = String(h).padStart(2, '0')
+    // Realistic peak power during day (8-18), renewable peaks during day
+    const loadBase = 30 + Math.sin((h - 6) * Math.PI / 12) * 40
+    const renewableBase = Math.max(0, 40 + Math.sin((h - 10) * Math.PI / 8) * 35)
+    return {
+      hour,
+      load: Math.round(Math.max(20, loadBase + Math.random() * 10) * 100) / 100,
+      renewable: Math.round(Math.max(0, renewableBase + Math.random() * 8) * 100) / 100,
+    }
+  })
 
-  // Cost breakdown
+  // Cost breakdown (dynamic calculation)
+  const totalCost = hourlyPattern.reduce((sum, item) => sum + item.load * 1.2, 0)
+  const peakCost = totalCost * 0.5  // Peak hours = 50% of total
+  const offPeakCost = totalCost * 0.33  // Off-peak = 33%
+  const renewableCost = totalCost * 0.17  // Renewable = 17%
+  
   const costBreakdown = [
-    { category: 'Peak Hours', cost: 120, percentage: 50 },
-    { category: 'Off-Peak', cost: 80, percentage: 33 },
-    { category: 'Renewable', cost: 40, percentage: 17 },
+    { category: 'Peak Hours', cost: Math.round(peakCost * 100) / 100, percentage: 50 },
+    { category: 'Off-Peak', cost: Math.round(offPeakCost * 100) / 100, percentage: 33 },
+    { category: 'Renewable', cost: Math.round(renewableCost * 100) / 100, percentage: 17 },
   ]
 
-  return (
+  // Load devices from static data
+  useEffect(() => {
+    // Use static dummy devices
+    const staticDevices = [
+      { id: 1, location: 'Ruang A1', device_name: 'AC Kelas A', current_power: 2.5, current_temperature: 22.5 },
+      { id: 2, location: 'Ruang B1', device_name: 'AC Kelas B', current_power: 3.2, current_temperature: 23.1 },
+      { id: 3, location: 'Ruang C1', device_name: 'AC Kelas C', current_power: 2.8, current_temperature: 22.8 },
+      { id: 4, location: 'Ruang D1', device_name: 'Lampu Kelas D', current_power: 1.2, current_temperature: 20.0 },
+      { id: 5, location: 'Ruang E1', device_name: 'Lampu Kelas E', current_power: 1.5, current_temperature: 20.5 },
+    ]
+    
+    // Extract unique locations
+    const uniqueClasses = ['All', ...new Set(staticDevices.map((d: Device) => d.location))]
+    setClasses(uniqueClasses)
+    setDevices(staticDevices)
+    
+    // Set static data
+    setMonthlyData(defaultMonthlyData)
+    setDailyTrends(defaultDailyTrends)
+    setError(null)
+    setLoading(false)
+  }, [])
+
+  if (loading) {
+    return (
+      <div className="flex h-screen bg-gray-50 items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-gray-600">Memuat data analitik...</p>
+        </div>
+      </div>
+    )
+  }
     <div className="flex h-screen bg-gray-50">
       {/* Sidebar */}
       <aside
@@ -66,18 +124,22 @@ export default function AnalyticsPage() {
           sidebarOpen ? 'w-64' : 'w-20'
         } gradient-primary text-white transition-all duration-300 flex flex-col shadow-xl`}
       >
-        <div className="p-6 flex items-center justify-between">
-          {sidebarOpen && <h1 className="text-2xl font-bold">SmartEnergy</h1>}
+        <div className="p-4 flex items-center justify-between">
+          {sidebarOpen && (
+            <div className="flex-1 w-full h-auto">
+              <Image src="/logo_unesa.png" alt="UNESA Logo" width={240} height={80} priority className="w-full h-auto object-contain" />
+            </div>
+          )}
           <button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-2 hover:bg-white/20 rounded-lg">
             <Menu size={20} />
           </button>
         </div>
 
         <nav className="flex-1 px-3 space-y-2">
-          <NavLink href="/" icon={<BarChart3 size={20} />} label="Dasbor" sidebarOpen={sidebarOpen} />
-          <NavLink href="/devices" icon={<Cpu size={20} />} label="Perangkat" sidebarOpen={sidebarOpen} />
+          <NavLink href="/" icon={<Zap size={20} />} label="Dasbor" sidebarOpen={sidebarOpen} />
+          <NavLink href="/devices" icon={<Gauge size={20} />} label="Perangkat" sidebarOpen={sidebarOpen} />
           <NavLink href="/analytics" icon={<TrendingUp size={20} />} label="Analitik" active sidebarOpen={sidebarOpen} />
-          <NavLink href="/alerts" icon={<Filter size={20} />} label="Pemberitahuan" sidebarOpen={sidebarOpen} />
+          <NavLink href="/alerts" icon={<AlertCircle size={20} />} label="Pemberitahuan" sidebarOpen={sidebarOpen} />
         </nav>
 
         <div className="px-3 pb-6 space-y-2 border-t border-white/20 pt-4">
@@ -87,63 +149,63 @@ export default function AnalyticsPage() {
 
       {/* Main Content */}
       <main className="flex-1 overflow-auto">
-        {/* Header */}
-        <header className="bg-white shadow-sm border-b border-gray-200 p-6">
-          <div className="flex justify-between items-center mb-4">
-            <div>
-              <h2 className="text-3xl font-bold text-gray-900">Analitik & Wawasan</h2>
-              <p className="text-gray-500 mt-1">Analisis konsumsi energi terperinci</p>
+        <header className="bg-white shadow-sm border-b border-gray-200">
+          <div className="px-8 py-6">
+            <div className="flex justify-between items-center mb-4">
+              <div>
+                <h2 className="text-3xl font-bold text-gray-900">Analitik AC & Lampu</h2>
+                <p className="text-gray-500 mt-1">Analisis Konsumsi Energi Terperinci per Kelas</p>
+              </div>
             </div>
-          </div>
 
-          {/* Filter Bar */}
-          <div className="flex items-center space-x-4">
-            <div className="flex space-x-2">
-              {['7d', '30d', '90d', '1y'].map((range) => (
-                <button
-                  key={range}
-                  onClick={() => setTimeRange(range)}
-                  className={`px-4 py-2 rounded-lg font-medium smooth-transition ${
-                    timeRange === range ? 'bg-primary text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-                >
-                  {range}
-                </button>
-              ))}
+            <div className="flex items-center space-x-6 pt-4 border-t border-gray-200">
+              <div className="flex items-center space-x-2">
+                <span className="text-sm font-semibold text-gray-700">Kelas:</span>
+                <div className="flex space-x-2">
+                  {classes.map((cls) => (
+                    <button key={cls} onClick={() => setSelectedClass(cls)} className={`px-3 py-2 rounded-lg font-medium smooth-transition text-sm ${selectedClass === cls ? 'bg-primary text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>
+                      {cls}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex space-x-2 ml-auto">
+                {['7d', '30d', '90d'].map((range) => (
+                  <button key={range} onClick={() => setTimeRange(range)} className={`px-4 py-2 rounded-lg font-medium smooth-transition text-sm ${timeRange === range ? 'bg-primary text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>
+                    {range}
+                  </button>
+                ))}
+              </div>
             </div>
-            <button className="px-4 py-2 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 flex items-center space-x-2">
-              <Download size={18} />
-              <span>Ekspor</span>
-            </button>
           </div>
         </header>
 
-        {/* Content */}
-        <div className="p-6">
+        <div className="p-8">
           {/* KPI Row */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
             <AnalyticsCard
-              title="Total Konsumsi"
-              value="8,500 kWh"
+              title="AC Konsumsi"
+              value="450 kWh"
+              change="+8.5%"
+              icon={<Zap className="text-orange-500" />}
+            />
+            <AnalyticsCard
+              title="Lampu Konsumsi"
+              value="240 kWh"
               change="+5.2%"
-              icon={<TrendingUp className="text-blue-500" />}
+              icon={<Gauge className="text-blue-500" />}
             />
             <AnalyticsCard
-              title="Rata-rata Harian"
-              value="283 kWh"
-              change="-2.1%"
-              icon={<Target className="text-green-500" />}
+              title="AC Efisiensi"
+              value="91%"
+              change="+2%"
+              icon={<TrendingUp className="text-green-500" />}
             />
             <AnalyticsCard
-              title="Beban Puncak"
-              value="12.3 kW"
-              change="18:45 Hari Ini"
-              icon={<BarChart3 className="text-orange-500" />}
-            />
-            <AnalyticsCard
-              title="Terbarukan %"
-              value="42%"
-              change="+8.3%"
+              title="Lampu Efisiensi"
+              value="93%"
+              change="+1%"
               icon={<TrendingUp className="text-teal-500" />}
             />
           </div>
@@ -154,32 +216,31 @@ export default function AnalyticsPage() {
             <div className="bg-white rounded-xl card-shadow p-6">
               <h3 className="text-lg font-semibold text-gray-900 mb-4">Tren Konsumsi Bulanan</h3>
               <ResponsiveContainer width="100%" height={300}>
-                <ComposedChart data={monthlyData}>
+                <LineChart data={monthlyData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                   <XAxis dataKey="month" stroke="#6b7280" />
-                  <YAxis stroke="#6b7280" yAxisId="left" />
-                  <YAxis stroke="#6b7280" yAxisId="right" orientation="right" />
+                  <YAxis stroke="#6b7280" />
                   <Tooltip contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px' }} />
                   <Legend />
-                  <Bar yAxisId="left" dataKey="consumption" fill="#0F766E" radius={[8, 8, 0, 0]} />
-                  <Line yAxisId="right" type="monotone" dataKey="forecast" stroke="#F59E0B" strokeDasharray="5 5" strokeWidth={2} />
-                </ComposedChart>
+                  <Line type="monotone" dataKey="ac" stroke="#d8ae47" strokeWidth={2} name="AC (kWh)" />
+                  <Line type="monotone" dataKey="lamp" stroke="#483688" strokeWidth={2} name="Lampu (kWh)" />
+                </LineChart>
               </ResponsiveContainer>
             </div>
 
             {/* Daily Patterns */}
             <div className="bg-white rounded-xl card-shadow p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Pola Beban Harian</h3>
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Puncak Penggunaan Harian</h3>
               <ResponsiveContainer width="100%" height={300}>
-                <AreaChart data={dailyTrends}>
+                <BarChart data={dailyTrends}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                   <XAxis dataKey="day" stroke="#6b7280" />
                   <YAxis stroke="#6b7280" />
                   <Tooltip contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px' }} />
                   <Legend />
-                  <Area type="monotone" dataKey="peak" fill="#EF4444" stroke="#EF4444" fillOpacity={0.3} />
-                  <Area type="monotone" dataKey="average" fill="#0F766E" stroke="#0F766E" fillOpacity={0.3} />
-                </AreaChart>
+                  <Bar dataKey="ac" fill="#d8ae47" name="AC Peak (kW)" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="lamp" fill="#483688" name="Lamp Peak (kW)" radius={[4, 4, 0, 0]} />
+                </BarChart>
               </ResponsiveContainer>
             </div>
           </div>
@@ -294,4 +355,21 @@ function AnalyticsCard({ title, value, change, icon }: any) {
       </div>
     </div>
   )
+}
+
+// Dynamic helper function for mock device comparison based on current state
+function generateMockDeviceComparison() {
+  const classes = ['Kelas A', 'Kelas B', 'Kelas C', 'Kelas D', 'Kelas E']
+  
+  return classes.map(cls => {
+    const baseConsumption = 3 + Math.random() * 2  // 3-5 kW
+    const efficiency = 85 + Math.random() * 10     // 85-95%
+    
+    return {
+      device: cls,
+      efficiency: Math.round(efficiency * 10) / 10,
+      consumption: Math.round(baseConsumption * 100) / 100,
+      cost: Math.round(baseConsumption * 1.2 * 100) / 100,
+    }
+  })
 }

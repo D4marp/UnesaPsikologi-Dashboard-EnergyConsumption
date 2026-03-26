@@ -1,12 +1,23 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Menu, Settings, Save, ChevronRight, Bell, Lock, Eye, Mail, Smartphone, AlertCircle } from 'lucide-react'
 import Link from 'next/link'
+import Image from 'next/image'
+import { settingsAPI } from '@/lib/apiClient'
+
+interface Setting {
+  key: string
+  value: string
+  description?: string
+}
 
 export default function SettingsPage() {
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [activeTab, setActiveTab] = useState('general')
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [isSaving, setIsSaving] = useState(false)
   const [settings, setSettings] = useState({
     // General
     timezone: 'Asia/Jakarta',
@@ -30,12 +41,76 @@ export default function SettingsPage() {
     autoLogout: true,
   })
 
+  // Load settings from API
+  useEffect(() => {
+    const loadSettings = async () => {
+      try {
+        setLoading(true)
+        const apiSettings = await settingsAPI.getAll()
+        
+        // Merge API settings with defaults
+        const mergedSettings = { ...settings }
+        apiSettings.forEach((setting: Setting) => {
+          const key = setting.key.replace(/\./g, '_')
+          if (key in mergedSettings) {
+            const value = setting.value
+            mergedSettings[key as keyof typeof settings] = 
+              value === 'true' ? true : value === 'false' ? false : isNaN(Number(value)) ? value : Number(value)
+          }
+        })
+        
+        setSettings(mergedSettings)
+        setError(null)
+      } catch (err) {
+        console.error('Error loading settings:', err)
+        setError(err instanceof Error ? err.message : 'Failed to load settings')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    loadSettings()
+  }, [])
+
   const handleToggle = (key: keyof typeof settings) => {
     setSettings({ ...settings, [key]: !settings[key] })
   }
 
   const handleChange = (key: string, value: any) => {
     setSettings({ ...settings, [key]: value })
+  }
+
+  const handleSave = async () => {
+    try {
+      setIsSaving(true)
+      
+      // Save each setting
+      for (const [key, value] of Object.entries(settings)) {
+        await settingsAPI.update(
+          key.replace(/_/g, '.'),
+          String(value)
+        )
+      }
+      
+      setError(null)
+      alert('Pengaturan berhasil disimpan!')
+    } catch (err) {
+      console.error('Error saving settings:', err)
+      setError(err instanceof Error ? err.message : 'Failed to save settings')
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex h-screen bg-gray-50 items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-gray-600">Memuat pengaturan...</p>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -46,8 +121,12 @@ export default function SettingsPage() {
           sidebarOpen ? 'w-64' : 'w-20'
         } gradient-primary text-white transition-all duration-300 flex flex-col shadow-xl`}
       >
-        <div className="p-6 flex items-center justify-between">
-          {sidebarOpen && <h1 className="text-2xl font-bold">SmartEnergy</h1>}
+        <div className="p-4 flex items-center justify-between">
+          {sidebarOpen && (
+            <div className="flex-1 w-full h-auto">
+              <Image src="/logo_unesa.png" alt="UNESA Logo" width={240} height={80} priority className="w-full h-auto object-contain" />
+            </div>
+          )}
           <button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-2 hover:bg-white/20 rounded-lg">
             <Menu size={20} />
           </button>
@@ -74,11 +153,20 @@ export default function SettingsPage() {
               <h2 className="text-3xl font-bold text-gray-900">Pengaturan</h2>
               <p className="text-gray-500 mt-1">Konfigurasi sistem Smart Energy Anda</p>
             </div>
-            <button className="px-6 py-2 bg-primary text-white rounded-lg hover:bg-teal-700 flex items-center space-x-2 smooth-transition">
+            <button 
+              onClick={handleSave}
+              disabled={isSaving || loading}
+              className="px-6 py-2 bg-primary text-white rounded-lg hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2 smooth-transition"
+            >
               <Save size={20} />
-              <span>Simpan Perubahan</span>
+              <span>{isSaving ? 'Menyimpan...' : 'Simpan Perubahan'}</span>
             </button>
           </div>
+          {error && (
+            <div className="bg-red-100 border-l-4 border-red-500 p-4 text-red-700">
+              <p>Error: {error}</p>
+            </div>
+          )}
         </header>
 
         {/* Content */}
