@@ -70,21 +70,11 @@ export default function Dashboard() {
       { time: '24:00', ac: 24, lamp: 18 },
     ])
     
-    // Use static monthly data - full 12 months starting from April (installation completed)
-    // Data starts from April 2025 through March 2026
+    // Use static monthly data - only March and April (installation period)
+    // No previous data available, future data not yet collected
     setMonthlyData([
-      { month: 'Apr', ac: 350, lamp: 180 },  // Initial ramp-up after installation
-      { month: 'May', ac: 450, lamp: 240 },  // Usage increases
-      { month: 'Jun', ac: 520, lamp: 280 },  // Higher usage
-      { month: 'Jul', ac: 600, lamp: 320 },  // Peak (hot season)
-      { month: 'Aug', ac: 580, lamp: 310 },  // Still high
-      { month: 'Sep', ac: 500, lamp: 270 },  // Usage decreases
-      { month: 'Oct', ac: 420, lamp: 230 },  // Temperature cooler
-      { month: 'Nov', ac: 380, lamp: 210 },  // Moderate usage
-      { month: 'Dec', ac: 360, lamp: 200 },  // Low season (cool weather)
-      { month: 'Jan', ac: 370, lamp: 205 },  // Still moderate
-      { month: 'Feb', ac: 390, lamp: 215 },  // Slight increase
-      { month: 'Mar', ac: 410, lamp: 225 },  // Back to moderate
+      { month: 'Mar', ac: 0, lamp: 0 },      // Before installation
+      { month: 'Apr', ac: 350, lamp: 180 },  // Installation completed, initial data
     ])
     
     setLoading(false)

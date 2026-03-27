@@ -24,21 +24,11 @@ export default function AnalyticsPage() {
   const [monthlyData, setMonthlyData] = useState<any[]>([])
   const [dailyTrends, setDailyTrends] = useState<any[]>([])
 
-  // Monthly AC & Lamp Data - full 12 months starting from April (installation completed)
-  // Data from April 2025 through March 2026
+  // Monthly AC & Lamp Data - only March and April (installation period)
+  // No previous data available, future data not yet collected
   const defaultMonthlyData = [
-    { month: 'Apr', ac: 350, lamp: 180, acEff: 82, lampEff: 85 },   // Initial ramp-up, lower efficiency
-    { month: 'May', ac: 450, lamp: 240, acEff: 86, lampEff: 88 },   // Efficiency improving
-    { month: 'Jun', ac: 520, lamp: 280, acEff: 89, lampEff: 91 },   // Better optimization
-    { month: 'Jul', ac: 600, lamp: 320, acEff: 91, lampEff: 93 },   // Peak, high efficiency
-    { month: 'Aug', ac: 580, lamp: 310, acEff: 90, lampEff: 92 },   // Maintained efficiency
-    { month: 'Sep', ac: 500, lamp: 270, acEff: 92, lampEff: 94 },   // Reduced load, optimized
-    { month: 'Oct', ac: 420, lamp: 230, acEff: 93, lampEff: 95 },   // Cooler weather, peak efficiency
-    { month: 'Nov', ac: 380, lamp: 210, acEff: 94, lampEff: 96 },   // Lower demand, high efficiency
-    { month: 'Dec', ac: 360, lamp: 200, acEff: 95, lampEff: 97 },   // Low season, excellent efficiency
-    { month: 'Jan', ac: 370, lamp: 205, acEff: 94, lampEff: 96 },   // Stable efficiency
-    { month: 'Feb', ac: 390, lamp: 215, acEff: 93, lampEff: 95 },   // Slight increase as season changes
-    { month: 'Mar', ac: 410, lamp: 225, acEff: 92, lampEff: 94 },   // Back to moderate usage
+    { month: 'Mar', ac: 0, lamp: 0, acEff: 0, lampEff: 0 },        // Before installation
+    { month: 'Apr', ac: 350, lamp: 180, acEff: 82, lampEff: 85 },  // Installation completed, initial data
   ]
 
   // Daily Peak Usage
