@@ -133,7 +133,7 @@ export default function Dashboard() {
       backgroundAttachment: 'fixed'
     }}>
       {/* Semi-transparent overlay */}
-      <div className="absolute inset-0 bg-white/80 pointer-events-none"></div>
+      <div className="absolute inset-0 bg-white/40 pointer-events-none"></div>
       
       {/* Sidebar */}
       <aside
